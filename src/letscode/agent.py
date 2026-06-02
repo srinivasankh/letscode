@@ -53,25 +53,22 @@ def resolve_abs_path(path_str: str) -> Path:
 
 from typing import Any, Dict
 
-
-# ── Tool 1: Read a file ────────────────────────────────────────────────────
-
 def read_file(filename: str) -> Dict[str, Any]:
     """
     Gets the full content of a file provided by the user.
     :param filename: The name of the file to read.
     :return: The full content of the file.
     """
-    full_path = resolve_abs_path(filename)
-    with open(str(full_path), "r") as f:
-        content = f.read()
-    return {
-        "file_path": str(full_path),
-        "content": content,
-    }
+    try:
+        full_path = resolve_abs_path(filename)
+        with open(str(full_path), "r") as f:
+            content = f.read()
+        return {"file_path": str(full_path), "content": content}
+    except FileNotFoundError:
+        return {"error": f"file not found: {filename}"}
+    except Exception as e:
+        return {"error": str(e)}
 
-
-# ── Tool 2: List files in a directory ─────────────────────────────────────
 
 def list_files(path: str) -> Dict[str, Any]:
     """
@@ -79,20 +76,20 @@ def list_files(path: str) -> Dict[str, Any]:
     :param path: The path to a directory to list files from.
     :return: A list of files in the directory.
     """
-    full_path = resolve_abs_path(path)
-    all_files = []
-    for item in full_path.iterdir():
-        all_files.append({
-            "filename": item.name,
-            "type": "file" if item.is_file() else "dir",
-        })
-    return {
-        "path": str(full_path),
-        "files": all_files,
-    }
+    try:
+        full_path = resolve_abs_path(path)
+        all_files = []
+        for item in full_path.iterdir():
+            all_files.append({
+                "filename": item.name,
+                "type": "file" if item.is_file() else "dir",
+            })
+        return {"path": str(full_path), "files": all_files}
+    except FileNotFoundError:
+        return {"error": f"directory not found: {path}"}
+    except Exception as e:
+        return {"error": str(e)}
 
-
-# ── Tool 3: Edit (or create) a file ───────────────────────────────────────
 
 def edit_file(path: str, old_str: str, new_str: str) -> Dict[str, Any]:
     """
@@ -103,20 +100,29 @@ def edit_file(path: str, old_str: str, new_str: str) -> Dict[str, Any]:
     :param new_str: The string to replace with, or the full content of the new file.
     :return: A dictionary with the path and the action taken.
     """
-    full_path = resolve_abs_path(path)
+    try:
+        full_path = resolve_abs_path(path)
 
-    if old_str == "":
-        full_path.write_text(new_str, encoding="utf-8")
-        return {"path": str(full_path), "action": "created_file"}
+        if old_str == "":
+            full_path.write_text(new_str, encoding="utf-8")
+            return {"path": str(full_path), "action": "created_file"}
 
-    original = full_path.read_text(encoding="utf-8")
+        original = full_path.read_text(encoding="utf-8")
 
-    if original.find(old_str) == -1:
-        return {"path": str(full_path), "action": "old_str_not_found"}
+        if original.find(old_str) == -1:
+            return {"path": str(full_path), "action": "old_str_not_found"}
 
-    edited = original.replace(old_str, new_str, 1)
-    full_path.write_text(edited, encoding="utf-8")
-    return {"path": str(full_path), "action": "edited"}
+        edited = original.replace(old_str, new_str, 1)
+        full_path.write_text(edited, encoding="utf-8")
+        return {"path": str(full_path), "action": "edited"}
+
+    except FileNotFoundError:
+        return {"error": f"file not found: {path}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+
 
 
 # ── Registry: name → function ──────────────────────────────────────────────
@@ -245,19 +251,21 @@ def run_agent_loop() -> None:
         conversation.append({"role": "user", "content": user_input})
 
         # ── Inner loop: run until LLM stops calling tools ──────────────
-        while True:
+        max_iterations = 10
+        iteration = 0
+
+        while iteration < max_iterations:
+            iteration += 1
             response_text = call_llm(conversation)
             tool_calls = parse_tool_call(response_text)
 
             if not tool_calls:
-                # No tool call — print response and wait for next user input
                 print(f"{ASSISTANT_COLOR}letscode:{RESET_COLOR} {response_text}\n")
                 conversation.append({"role": "assistant", "content": response_text})
                 break
-            # Record what the assistant said before executing tools
+
             conversation.append({"role": "assistant", "content": response_text})
-            
-            # Tool call detected — execute it and feed result back to LLM
+
             for tool_name, args in tool_calls:
                 print(f"  ⚙ {tool_name}({args})")
 
@@ -278,11 +286,13 @@ def run_agent_loop() -> None:
                 else:
                     result = {"error": f"unhandled tool: {tool_name}"}
 
-                # Feed the tool result back into the conversation
                 conversation.append({
                     "role": "user",
                     "content": f"tool_result({json.dumps(result)})",
                 })
+
+        else:
+            print(f"{ASSISTANT_COLOR}letscode:{RESET_COLOR} Hit max iterations — something went wrong. Try again.\n")
 
 
 def main() -> None:
