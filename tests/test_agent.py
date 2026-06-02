@@ -1,6 +1,6 @@
 import pytest
 import subprocess
-from letscode.agent import dispatch_tool, run_command, call_llm, dispatch_slash_command
+from letscode.agent import dispatch_tool, run_command, call_llm, dispatch_slash_command, run_agent_loop
 from unittest.mock import patch, MagicMock
 
 
@@ -102,3 +102,26 @@ def test_dispatch_slash_unknown_returns_false_and_hints(capsys):
 def test_dispatch_slash_bare_slash_no_crash():
     # "/" alone must not raise IndexError
     assert dispatch_slash_command("/") is False
+
+
+# ── Task 5: slash commands in the loop ──────────────────────────────────────
+
+def test_loop_exits_on_slash_exit_without_calling_llm(capsys):
+    # /exit must break the loop locally — the LLM is never invoked.
+    with patch("builtins.input", side_effect=["/exit"]):
+        with patch("letscode.agent.call_llm") as mock_llm:
+            run_agent_loop()        # returns cleanly when the loop breaks
+    mock_llm.assert_not_called()
+    captured = capsys.readouterr()
+    assert "bye!" in captured.out
+
+def test_loop_continues_on_unknown_command_then_exits(capsys):
+    # /foo is handled locally (hint printed, loop continues), then /exit quits.
+    # If /foo crashed or exited, we'd never reach /exit. The LLM is never called.
+    with patch("builtins.input", side_effect=["/foo", "/exit"]):
+        with patch("letscode.agent.call_llm") as mock_llm:
+            run_agent_loop()
+    mock_llm.assert_not_called()
+    captured = capsys.readouterr()
+    assert "unknown command" in captured.out
+    assert "bye!" in captured.out

@@ -39,7 +39,7 @@ def print_welcome() -> None:
     print(f"  BYOK    : Add your OpenRouter key to .env")
     print(f"  Keys    : openrouter.ai/keys")
     print(f"  {'─' * 58}\n")
-    print(f"  Type your coding task below. {YOU_COLOR}Ctrl+C{RESET_COLOR} to exit.\n")
+    print(f"  Type your coding task below. {YOU_COLOR}/exit{RESET_COLOR} or {YOU_COLOR}Ctrl+C{RESET_COLOR} to quit.\n")
 
 
 
@@ -312,7 +312,7 @@ def run_agent_loop() -> None:
     print_welcome()
 
     print(f"letscode — model: {MODEL}")
-    print("Type your coding task. Ctrl+C to exit.\n")
+    print("Type your coding task. /exit or Ctrl+C to quit.\n")
 
     while True:
         # ── Get user input ─────────────────────────────────────────────
@@ -324,6 +324,12 @@ def run_agent_loop() -> None:
 
         if not user_input:
             continue
+
+        # ── Slash commands: handled locally, never sent to the LLM ─────
+        if user_input.startswith("/"):
+            if dispatch_slash_command(user_input):
+                break        # quit
+            continue          # handled (or unknown) — don't call the LLM
 
         conversation.append({"role": "user", "content": user_input})
 
