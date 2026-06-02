@@ -198,23 +198,70 @@ def parse_tool_call(text: str) -> List[Tuple[str, Dict[str, Any]]]:
     return invocations
 
 
-def main() -> None:
-    print(f"letscode — model: {MODEL} ✓")
-    print(f"tools loaded: {list(TOOL_REGISTRY.keys())}")
-    
-    # Test the parser with a fake LLM response
-    fake_response = 'tool: read_file({"filename": "hello.py"})'
-    parsed = parse_tool_call(fake_response)
-    print(f"\nparser test: {parsed}")
+def run_agent_loop() -> None:
+    """The main agent loop — outer loop gets user input, inner loop runs tools."""
+    conversation = [
+        {"role": "system", "content": build_system_prompt()}
+    ]
 
-    # Test the LLM call with a simple message
-    print("\ncalling LLM...")
-    reply = call_llm([
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "Reply with exactly: hello from letscode"},
-    ])
-    print(f"LLM reply: {reply}")
-    
+    print(f"letscode — model: {MODEL}")
+    print("Type your coding task. Ctrl+C to exit.\n")
+
+    while True:
+        # ── Get user input ─────────────────────────────────────────────
+        try:
+            user_input = input(f"{YOU_COLOR}You:{RESET_COLOR} ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print("\nbye!")
+            break
+
+        if not user_input:
+            continue
+
+        conversation.append({"role": "user", "content": user_input})
+
+        # ── Inner loop: run until LLM stops calling tools ──────────────
+        while True:
+            response_text = call_llm(conversation)
+            tool_calls = parse_tool_call(response_text)
+
+            if not tool_calls:
+                # No tool call — print response and wait for next user input
+                print(f"{ASSISTANT_COLOR}letscode:{RESET_COLOR} {response_text}\n")
+                conversation.append({"role": "assistant", "content": response_text})
+                break
+
+            # Tool call detected — execute it and feed result back to LLM
+            for tool_name, args in tool_calls:
+                print(f"  ⚙ {tool_name}({args})")
+
+                tool_fn = TOOL_REGISTRY.get(tool_name)
+
+                if tool_fn is None:
+                    result = {"error": f"unknown tool: {tool_name}"}
+                elif tool_name == "read_file":
+                    result = tool_fn(args.get("filename", ""))
+                elif tool_name == "list_files":
+                    result = tool_fn(args.get("path", "."))
+                elif tool_name == "edit_file":
+                    result = tool_fn(
+                        args.get("path", ""),
+                        args.get("old_str", ""),
+                        args.get("new_str", ""),
+                    )
+                else:
+                    result = {"error": f"unhandled tool: {tool_name}"}
+
+                # Feed the tool result back into the conversation
+                conversation.append({
+                    "role": "user",
+                    "content": f"tool_result({json.dumps(result)})",
+                })
+
+
+def main() -> None:
+    run_agent_loop()
+
 
 if __name__ == "__main__":
     main()
