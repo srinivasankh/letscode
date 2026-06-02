@@ -8,9 +8,11 @@ from pathlib import Path
 load_dotenv()
 
 # OpenRouter is OpenAI-API-compatible — same SDK, different base_url
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=os.environ["OPENROUTER_API_KEY"],
+API_KEY = os.environ.get("OPENROUTER_API_KEY")
+client = (
+    OpenAI(base_url="https://openrouter.ai/api/v1", api_key=API_KEY)
+    if API_KEY
+    else None
 )
 
 MODEL = os.environ.get("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
@@ -363,6 +365,12 @@ def run_agent_loop() -> None:
 
 
 def main() -> None:
+    if client is None:
+        print(
+            "OPENROUTER_API_KEY is not set. Add it to a .env file or your "
+            "environment.\nGet a free key at https://openrouter.ai/keys"
+        )
+        raise SystemExit(1)
     run_agent_loop()
 
 

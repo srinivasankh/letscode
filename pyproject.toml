@@ -1,8 +1,20 @@
 [project]
-name = "letscode"
+name = "letscode-cli"
 version = "0.1.0"
-description = "A coding agent — bring your own OpenRouter API key"
+description = "A from-scratch coding agent — bring your own OpenRouter API key"
+readme = "README.md"
 requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Srini" }]
+keywords = ["coding-agent", "llm", "openrouter", "cli", "ai"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Build Tools",
+]
 dependencies = [
     "openai>=1.30.0",
     "python-dotenv>=1.0.0",
@@ -10,6 +22,11 @@ dependencies = [
 
 [project.scripts]
 letscode = "letscode.agent:main"
+
+[project.urls]
+Homepage = "https://github.com/srinivasankh/letscode"
+Repository = "https://github.com/srinivasankh/letscode"
+Issues = "https://github.com/srinivasankh/letscode/issues"
 
 [build-system]
 requires = ["hatchling"]
