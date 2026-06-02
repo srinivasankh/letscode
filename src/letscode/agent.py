@@ -133,6 +133,18 @@ TOOL_REGISTRY = {
     "edit_file": edit_file,
 }
 
+
+def dispatch_tool(tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+    """Looks up tool_name in TOOL_REGISTRY and calls it with **args."""
+    tool_fn = TOOL_REGISTRY.get(tool_name)
+    if tool_fn is None:
+        return {"error": f"unknown tool: {tool_name}"}
+    try:
+        return tool_fn(**args)
+    except TypeError as e:
+        return {"error": f"bad arguments for {tool_name}: {e}"}
+
+
 import inspect
 from typing import List
 
@@ -269,22 +281,7 @@ def run_agent_loop() -> None:
             for tool_name, args in tool_calls:
                 print(f"  ⚙ {tool_name}({args})")
 
-                tool_fn = TOOL_REGISTRY.get(tool_name)
-
-                if tool_fn is None:
-                    result = {"error": f"unknown tool: {tool_name}"}
-                elif tool_name == "read_file":
-                    result = tool_fn(args.get("filename", ""))
-                elif tool_name == "list_files":
-                    result = tool_fn(args.get("path", "."))
-                elif tool_name == "edit_file":
-                    result = tool_fn(
-                        args.get("path", ""),
-                        args.get("old_str", ""),
-                        args.get("new_str", ""),
-                    )
-                else:
-                    result = {"error": f"unhandled tool: {tool_name}"}
+                result = dispatch_tool(tool_name, args)
 
                 conversation.append({
                     "role": "user",
