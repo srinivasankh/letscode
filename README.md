@@ -13,7 +13,7 @@
 
 ## What is this?
 
-`letscode` is a coding agent built from first principles, inspired by [The Emperor Has No Clothes](https://www.mihaileric.com/The-Emperor-Has-No-Clothes/). It replicates the core loop of tools like Claude Code:
+`letscode` is a coding agent built from first principles. It replicates the core loop of tools like Claude Code:
 
 - You describe a coding task in plain English
 - The agent calls tools (read files, list directories, edit files) to get the job done
@@ -139,9 +139,3 @@ pyproject.toml   # package config
 - Python 3.12+
 - [uv](https://github.com/astral-sh/uv) (recommended) or pip
 - A free [OpenRouter](https://openrouter.ai/keys) API key
-
----
-
-## Credits
-
-Built while following [The Emperor Has No Clothes](https://www.mihaileric.com/The-Emperor-Has-No-Clothes/) by Mihail Eric — a great walkthrough of how coding agents actually work under the hood.
