@@ -149,14 +149,72 @@ def build_system_prompt() -> str:
     )
     return SYSTEM_PROMPT.format(tool_list=tool_descriptions)
 
+import json
+from typing import Tuple
+
+# ── LLM call ───────────────────────────────────────────────────────────────
+
+def call_llm(conversation: List[Dict[str, str]]) -> str:
+    """Sends the full conversation to OpenRouter and returns the response text."""
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=conversation,
+    )
+    return response.choices[0].message.content
+
+
+# ── Tool call parser ────────────────────────────────────────────────────────
+
+def parse_tool_call(text: str) -> List[Tuple[str, Dict[str, Any]]]:
+    """
+    Scans the LLM response for tool invocation lines.
+    Looks for lines in the format: tool: TOOL_NAME({"key": "value"})
+    Returns a list of (tool_name, args) tuples.
+    """
+    invocations = []
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+
+        if not line.startswith("tool:"):
+            continue
+
+        try:
+            after = line[len("tool:"):].strip()       # 'read_file({"filename": "hello.py"})'
+            name, rest = after.split("(", 1)          # 'read_file', '{"filename": "hello.py"})'
+            name = name.strip()
+
+            if not rest.endswith(")"):
+                continue
+
+            json_str = rest[:-1].strip()              # '{"filename": "hello.py"}'
+            args = json.loads(json_str)
+
+            invocations.append((name, args))
+
+        except Exception:
+            continue                                   # malformed line — skip silently
+
+    return invocations
 
 
 def main() -> None:
     print(f"letscode — model: {MODEL} ✓")
     print(f"tools loaded: {list(TOOL_REGISTRY.keys())}")
-    print("\n── System prompt preview ──")
-    print(build_system_prompt())
+    
+    # Test the parser with a fake LLM response
+    fake_response = 'tool: read_file({"filename": "hello.py"})'
+    parsed = parse_tool_call(fake_response)
+    print(f"\nparser test: {parsed}")
 
+    # Test the LLM call with a simple message
+    print("\ncalling LLM...")
+    reply = call_llm([
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Reply with exactly: hello from letscode"},
+    ])
+    print(f"LLM reply: {reply}")
+    
 
 if __name__ == "__main__":
     main()
