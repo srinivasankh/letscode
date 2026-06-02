@@ -254,7 +254,9 @@ def run_agent_loop() -> None:
                 print(f"{ASSISTANT_COLOR}letscode:{RESET_COLOR} {response_text}\n")
                 conversation.append({"role": "assistant", "content": response_text})
                 break
-
+            # Record what the assistant said before executing tools
+            conversation.append({"role": "assistant", "content": response_text})
+            
             # Tool call detected — execute it and feed result back to LLM
             for tool_name, args in tool_calls:
                 print(f"  ⚙ {tool_name}({args})")

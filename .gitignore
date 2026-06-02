@@ -6,3 +6,4 @@ dist/
 *.egg-info/
 hello.py
 mypi.py
+test.py
