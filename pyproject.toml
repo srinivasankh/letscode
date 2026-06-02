@@ -1,0 +1,19 @@
+[project]
+name = "letscode"
+version = "0.1.0"
+description = "A coding agent — bring your own OpenRouter API key"
+requires-python = ">=3.12"
+dependencies = [
+    "openai>=1.30.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+letscode = "letscode.agent:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/letscode"]
