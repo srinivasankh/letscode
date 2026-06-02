@@ -105,10 +105,57 @@ TOOL_REGISTRY = {
     "edit_file": edit_file,
 }
 
+import inspect
+from typing import List
+
+# ── System prompt ──────────────────────────────────────────────────────────
+
+SYSTEM_PROMPT = """
+You are letscode, a coding agent that helps users with coding tasks.
+You have access to tools you can use to read, navigate, and edit files.
+
+Here are your available tools:
+
+{tool_list}
+
+When you want to use a tool, reply with EXACTLY this format on its own line:
+tool: TOOL_NAME({{"param": "value"}})
+
+Use compact single-line JSON with double quotes inside the parentheses.
+After receiving a tool_result(...) message, continue the task.
+If no tool is needed, respond normally.
+
+Important rules:
+- Only call one tool per reply
+- Wait for the tool result before calling another tool
+- Never make up file contents — always read first
+"""
+
+
+def _get_tool_description(tool_name: str) -> str:
+    """Builds a text description of one tool from its name, docstring, and signature."""
+    tool_fn = TOOL_REGISTRY[tool_name]
+    return (
+        f"Tool: {tool_name}\n"
+        f"Description: {tool_fn.__doc__}\n"
+        f"Signature: {inspect.signature(tool_fn)}\n"
+    )
+
+
+def build_system_prompt() -> str:
+    """Assembles the full system prompt with all tool descriptions injected."""
+    tool_descriptions = "\n---\n".join(
+        _get_tool_description(name) for name in TOOL_REGISTRY
+    )
+    return SYSTEM_PROMPT.format(tool_list=tool_descriptions)
+
+
 
 def main() -> None:
     print(f"letscode — model: {MODEL} ✓")
     print(f"tools loaded: {list(TOOL_REGISTRY.keys())}")
+    print("\n── System prompt preview ──")
+    print(build_system_prompt())
 
 
 if __name__ == "__main__":
