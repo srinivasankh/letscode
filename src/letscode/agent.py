@@ -20,6 +20,28 @@ ASSISTANT_COLOR = "\u001b[93m"   # yellow
 RESET_COLOR     = "\u001b[0m"
 
 
+BANNER = f"""{ASSISTANT_COLOR}
+██╗     ███████╗████████╗███████╗ ██████╗ ██████╗ ██████╗ ███████╗
+██║     ██╔════╝╚══██╔══╝██╔════╝██╔════╝██╔═══██╗██╔══██╗██╔════╝
+██║     █████╗     ██║   ███████╗██║     ██║   ██║██║  ██║█████╗  
+██║     ██╔══╝     ██║   ╚════██║██║     ██║   ██║██║  ██║██╔══╝  
+███████╗███████╗   ██║   ███████║╚██████╗╚██████╔╝██████╔╝███████╗
+╚══════╝╚══════╝   ╚═╝   ╚══════╝ ╚═════╝ ╚═════╝ ╚═════╝╚══════╝
+{RESET_COLOR}"""
+
+def print_welcome() -> None:
+    """Prints the welcome screen."""
+    print(BANNER)
+    print(f"  by Srini · v0.1.0\n")
+    print(f"  {'─' * 58}")
+    print(f"  Model   : {ASSISTANT_COLOR}{MODEL}{RESET_COLOR}")
+    print(f"  BYOK    : Add your OpenRouter key to .env")
+    print(f"  Keys    : openrouter.ai/keys")
+    print(f"  {'─' * 58}\n")
+    print(f"  Type your coding task below. {YOU_COLOR}Ctrl+C{RESET_COLOR} to exit.\n")
+
+
+
 def resolve_abs_path(path_str: str) -> Path:
     """Converts a relative path like 'hello.py' to an absolute path."""
     path = Path(path_str).expanduser()
@@ -203,6 +225,8 @@ def run_agent_loop() -> None:
     conversation = [
         {"role": "system", "content": build_system_prompt()}
     ]
+
+    print_welcome()
 
     print(f"letscode — model: {MODEL}")
     print("Type your coding task. Ctrl+C to exit.\n")
