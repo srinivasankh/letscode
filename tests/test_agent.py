@@ -125,3 +125,12 @@ def test_loop_continues_on_unknown_command_then_exits(capsys):
     captured = capsys.readouterr()
     assert "unknown command" in captured.out
     assert "bye!" in captured.out
+
+def test_loop_forwards_normal_prompt_to_llm():
+    # A non-slash message must STILL reach the LLM — the intercept only diverts /commands.
+    # call_llm returns plain text with no tool call, so the inner loop ends cleanly,
+    # then /exit quits the outer loop.
+    with patch("letscode.agent.call_llm", return_value="hi there") as mock_llm:
+        with patch("builtins.input", side_effect=["write a hello world", "/exit"]):
+            run_agent_loop()
+    mock_llm.assert_called_once()

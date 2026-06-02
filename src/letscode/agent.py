@@ -328,7 +328,7 @@ def run_agent_loop() -> None:
         # ── Slash commands: handled locally, never sent to the LLM ─────
         if user_input.startswith("/"):
             if dispatch_slash_command(user_input):
-                break        # quit
+                break         # quit
             continue          # handled (or unknown) — don't call the LLM
 
         conversation.append({"role": "user", "content": user_input})
