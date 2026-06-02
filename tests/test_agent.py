@@ -1,4 +1,5 @@
 import pytest
+import subprocess
 from letscode.agent import dispatch_tool, run_command
 from unittest.mock import patch, MagicMock
 
@@ -41,3 +42,9 @@ def test_run_command_nonzero_exit():
         result = run_command("ls /this_path_does_not_exist_xyz_abc_123")
     assert result["exit_code"] != 0
     assert result["stderr"] != "" or result["stdout"] != ""
+
+def test_run_command_timeout():
+    with patch("builtins.input", return_value="y"):
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("sleep 60", 30)):
+            result = run_command("sleep 60")
+    assert result == {"error": "command timed out after 30s"}

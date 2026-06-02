@@ -137,14 +137,17 @@ def run_command(command: str) -> Dict[str, Any]:
     if confirm != "y":
         return {"error": "command rejected by user"}
 
-    result = subprocess.run(
-        command, shell=True, capture_output=True, text=True, timeout=30
-    )
-    return {
-        "stdout": result.stdout,
-        "stderr": result.stderr,
-        "exit_code": result.returncode,
-    }
+    try:
+        result = subprocess.run(
+            command, shell=True, capture_output=True, text=True, timeout=30
+        )
+        return {
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "exit_code": result.returncode,
+        }
+    except subprocess.TimeoutExpired:
+        return {"error": "command timed out after 30s"}
 
 
 # ── Registry: name → function ──────────────────────────────────────────────
