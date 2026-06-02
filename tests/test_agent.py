@@ -1,5 +1,5 @@
 import pytest
-from letscode.agent import dispatch_tool
+from letscode.agent import dispatch_tool, run_command
 from unittest.mock import patch, MagicMock
 
 
@@ -20,3 +20,24 @@ def test_dispatch_valid_tool(tmp_path):
     test_file.write_text("world")
     result = dispatch_tool("read_file", {"filename": str(test_file)})
     assert result["content"] == "world"
+
+
+# ── Task 2: run_command ────────────────────────────────────────────────────
+
+def test_run_command_rejected():
+    with patch("builtins.input", return_value="n"):
+        result = run_command("echo hello")
+    assert result == {"error": "command rejected by user"}
+
+def test_run_command_accepted_stdout():
+    with patch("builtins.input", return_value="y"):
+        result = run_command("echo hello")
+    assert result["exit_code"] == 0
+    assert "hello" in result["stdout"]
+    assert "stderr" in result
+
+def test_run_command_nonzero_exit():
+    with patch("builtins.input", return_value="y"):
+        result = run_command("ls /this_path_does_not_exist_xyz_abc_123")
+    assert result["exit_code"] != 0
+    assert result["stderr"] != "" or result["stdout"] != ""

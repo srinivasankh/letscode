@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -125,12 +126,34 @@ def edit_file(path: str, old_str: str, new_str: str) -> Dict[str, Any]:
 
 
 
+def run_command(command: str) -> Dict[str, Any]:
+    """
+    Runs a shell command and returns stdout, stderr, and exit code.
+    :param command: The shell command to run.
+    :return: stdout, stderr, and exit code.
+    """
+    print(f"\n  Command: {command}")
+    confirm = input("  Allow? [y/N] ").strip().lower()
+    if confirm != "y":
+        return {"error": "command rejected by user"}
+
+    result = subprocess.run(
+        command, shell=True, capture_output=True, text=True, timeout=30
+    )
+    return {
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "exit_code": result.returncode,
+    }
+
+
 # ── Registry: name → function ──────────────────────────────────────────────
 
 TOOL_REGISTRY = {
     "read_file": read_file,
     "list_files": list_files,
     "edit_file": edit_file,
+    "run_command": run_command,
 }
 
 
