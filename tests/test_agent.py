@@ -1,6 +1,6 @@
 import pytest
 import subprocess
-from letscode.agent import dispatch_tool, run_command
+from letscode.agent import dispatch_tool, run_command, call_llm
 from unittest.mock import patch, MagicMock
 
 
@@ -48,3 +48,35 @@ def test_run_command_timeout():
         with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("sleep 60", 30)):
             result = run_command("sleep 60")
     assert result == {"error": "command timed out after 30s"}
+
+
+# ── Task 3: streaming ──────────────────────────────────────────────────────
+
+def _make_chunk(content):
+    chunk = MagicMock()
+    chunk.choices = [MagicMock()]
+    chunk.choices[0].delta.content = content
+    return chunk
+
+def test_call_llm_returns_full_text(capsys):
+    chunks = [_make_chunk("Hello"), _make_chunk(" world")]
+    with patch("letscode.agent.client") as mock_client:
+        mock_client.chat.completions.create.return_value = iter(chunks)
+        result = call_llm([{"role": "user", "content": "hi"}])
+    assert result == "Hello world"
+
+def test_call_llm_prints_tokens(capsys):
+    chunks = [_make_chunk("Hello"), _make_chunk(" world")]
+    with patch("letscode.agent.client") as mock_client:
+        mock_client.chat.completions.create.return_value = iter(chunks)
+        call_llm([{"role": "user", "content": "hi"}])
+    captured = capsys.readouterr()
+    assert "Hello world" in captured.out
+
+def test_call_llm_skips_none_delta(capsys):
+    # OpenAI streams often emit None delta on the first/last chunk
+    chunks = [_make_chunk("Hello"), _make_chunk(None), _make_chunk(" world")]
+    with patch("letscode.agent.client") as mock_client:
+        mock_client.chat.completions.create.return_value = iter(chunks)
+        result = call_llm([{"role": "user", "content": "hi"}])
+    assert result == "Hello world"

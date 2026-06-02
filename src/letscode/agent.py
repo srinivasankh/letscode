@@ -221,12 +221,19 @@ from typing import Tuple
 # ── LLM call ───────────────────────────────────────────────────────────────
 
 def call_llm(conversation: List[Dict[str, str]]) -> str:
-    """Sends the full conversation to OpenRouter and returns the response text."""
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=conversation,
+    """Sends conversation to OpenRouter, streams tokens to stdout, returns full response text."""
+    stream = client.chat.completions.create(
+        model=MODEL, messages=conversation, stream=True
     )
-    return response.choices[0].message.content
+    print(f"{ASSISTANT_COLOR}letscode:{RESET_COLOR} ", end="", flush=True)
+    buffer = ""
+    for chunk in stream:
+        delta = chunk.choices[0].delta.content
+        if delta:
+            print(delta, end="", flush=True)
+            buffer += delta
+    print()
+    return buffer
 
 
 # ── Tool call parser ────────────────────────────────────────────────────────
@@ -298,7 +305,6 @@ def run_agent_loop() -> None:
             tool_calls = parse_tool_call(response_text)
 
             if not tool_calls:
-                print(f"{ASSISTANT_COLOR}letscode:{RESET_COLOR} {response_text}\n")
                 conversation.append({"role": "assistant", "content": response_text})
                 break
 
