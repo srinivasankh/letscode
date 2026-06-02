@@ -271,6 +271,38 @@ def parse_tool_call(text: str) -> List[Tuple[str, Dict[str, Any]]]:
     return invocations
 
 
+# ── Slash commands ───────────────────────────────────────────────────────────
+# Typed /commands are handled locally and never sent to the LLM — no tokens,
+# instant, guaranteed. Mirrors the TOOL_REGISTRY / dispatch_tool pattern.
+
+def cmd_exit() -> bool:
+    """Quits letscode."""
+    print("bye!")
+    return True   # True signals run_agent_loop to stop
+
+
+SLASH_REGISTRY = {
+    "exit": cmd_exit,
+}
+
+
+def dispatch_slash_command(user_input: str) -> bool:
+    """
+    Handles a /command line. Returns True if the app should exit.
+    Unknown commands print a hint and return False (not forwarded to the LLM).
+    """
+    parts = user_input[1:].split()          # "/exit foo" -> ["exit", "foo"]
+    if not parts:                            # bare "/" -> no crash
+        return False
+    name = parts[0]
+    handler = SLASH_REGISTRY.get(name)
+    if handler is None:
+        known = ", ".join("/" + c for c in SLASH_REGISTRY)
+        print(f"  unknown command: /{name}  (available: {known})")
+        return False
+    return handler()
+
+
 def run_agent_loop() -> None:
     """The main agent loop — outer loop gets user input, inner loop runs tools."""
     conversation = [

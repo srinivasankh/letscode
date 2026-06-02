@@ -1,6 +1,6 @@
 import pytest
 import subprocess
-from letscode.agent import dispatch_tool, run_command, call_llm
+from letscode.agent import dispatch_tool, run_command, call_llm, dispatch_slash_command
 from unittest.mock import patch, MagicMock
 
 
@@ -80,3 +80,25 @@ def test_call_llm_skips_none_delta(capsys):
         mock_client.chat.completions.create.return_value = iter(chunks)
         result = call_llm([{"role": "user", "content": "hi"}])
     assert result == "Hello world"
+
+
+# ── Task 4: slash commands ──────────────────────────────────────────────────
+
+def test_dispatch_slash_exit_returns_true():
+    # /exit signals the loop to quit
+    assert dispatch_slash_command("/exit") is True
+
+def test_dispatch_slash_exit_ignores_extra_args():
+    # only the first token matters
+    assert dispatch_slash_command("/exit now please") is True
+
+def test_dispatch_slash_unknown_returns_false_and_hints(capsys):
+    result = dispatch_slash_command("/foo")
+    assert result is False
+    captured = capsys.readouterr()
+    assert "unknown command" in captured.out
+    assert "/exit" in captured.out          # hint lists available commands
+
+def test_dispatch_slash_bare_slash_no_crash():
+    # "/" alone must not raise IndexError
+    assert dispatch_slash_command("/") is False
