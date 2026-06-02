@@ -228,7 +228,7 @@ def call_llm(conversation: List[Dict[str, str]]) -> str:
     print(f"{ASSISTANT_COLOR}letscode:{RESET_COLOR} ", end="", flush=True)
     buffer = ""
     for chunk in stream:
-        delta = chunk.choices[0].delta.content
+        delta = getattr(chunk.choices[0].delta, 'content', None)
         if delta:
             print(delta, end="", flush=True)
             buffer += delta
