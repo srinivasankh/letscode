@@ -41,8 +41,11 @@ tool: TOOL_NAME({"param": "value"})
 
 **System prompt** is built dynamically: `build_system_prompt()` injects each tool's name, docstring, and signature from `TOOL_REGISTRY` so the LLM always has accurate tool descriptions.
 
+**Interactive `/` menu** — `prompt_user()` wraps a `prompt_toolkit` `PromptSession`. Typing `/` opens a live dropdown (`SlashCompleter`) listing commands (`SLASH_REGISTRY`) then tools (`TOOL_REGISTRY`); arrow keys + Enter select. A custom Enter key-binding (`_make_key_bindings`) applies the highlighted completion — commands run immediately, tools insert a `/tool({...})` arg template for the user to fill. `dispatch_slash_command` runs the tool form locally via `parse_tool_call` + `dispatch_tool` (no LLM call). The loop calls `prompt_user`, not `input()`, so tests patch `letscode.agent.prompt_user`.
+
 ## Key conventions
-- Add new tools as plain functions in `agent.py`, register them in `TOOL_REGISTRY`, and the system prompt picks them up automatically — no other wiring needed.
+- Add new tools as plain functions in `agent.py`, register them in `TOOL_REGISTRY`, and the system prompt + `/` menu pick them up automatically — no other wiring needed.
+- Add new slash commands as functions returning `bool` (True = exit) in `SLASH_REGISTRY`; they appear in the `/` menu and `/help` automatically.
 - All file paths go through `resolve_abs_path()` to convert relative → absolute.
 - Tool results are injected back as `role: user` messages with content `tool_result({...json...})`.
 - The `assistant` message is appended to conversation *before* tool execution (correct ordering).
@@ -51,4 +54,5 @@ tool: TOOL_NAME({"param": "value"})
 ## Dependencies
 - `openai>=1.30.0` — used with `base_url` pointing at OpenRouter
 - `python-dotenv>=1.0.0` — loads `.env`
+- `prompt_toolkit>=3.0.0` — interactive `/` menu (completer, arrow-key navigation)
 - Python 3.12+, managed with `uv`

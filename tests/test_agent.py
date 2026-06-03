@@ -1,6 +1,10 @@
 import pytest
 import subprocess
-from letscode.agent import dispatch_tool, run_command, call_llm, dispatch_slash_command, run_agent_loop, search_text
+from letscode.agent import (
+    dispatch_tool, run_command, call_llm, dispatch_slash_command, run_agent_loop,
+    search_text, SlashCompleter, cmd_help,
+)
+from prompt_toolkit.document import Document
 from unittest.mock import patch, MagicMock
 
 
@@ -108,7 +112,7 @@ def test_dispatch_slash_bare_slash_no_crash():
 
 def test_loop_exits_on_slash_exit_without_calling_llm(capsys):
     # /exit must break the loop locally — the LLM is never invoked.
-    with patch("builtins.input", side_effect=["/exit"]):
+    with patch("letscode.agent.prompt_user", side_effect=["/exit"]):
         with patch("letscode.agent.call_llm") as mock_llm:
             run_agent_loop()        # returns cleanly when the loop breaks
     mock_llm.assert_not_called()
@@ -118,7 +122,7 @@ def test_loop_exits_on_slash_exit_without_calling_llm(capsys):
 def test_loop_continues_on_unknown_command_then_exits(capsys):
     # /foo is handled locally (hint printed, loop continues), then /exit quits.
     # If /foo crashed or exited, we'd never reach /exit. The LLM is never called.
-    with patch("builtins.input", side_effect=["/foo", "/exit"]):
+    with patch("letscode.agent.prompt_user", side_effect=["/foo", "/exit"]):
         with patch("letscode.agent.call_llm") as mock_llm:
             run_agent_loop()
     mock_llm.assert_not_called()
@@ -131,9 +135,100 @@ def test_loop_forwards_normal_prompt_to_llm():
     # call_llm returns plain text with no tool call, so the inner loop ends cleanly,
     # then /exit quits the outer loop.
     with patch("letscode.agent.call_llm", return_value="hi there") as mock_llm:
-        with patch("builtins.input", side_effect=["write a hello world", "/exit"]):
+        with patch("letscode.agent.prompt_user", side_effect=["write a hello world", "/exit"]):
             run_agent_loop()
     mock_llm.assert_called_once()
+
+
+# ── Task: interactive /-menu (completer + tool-via-slash + /help) ────────────
+
+def _completions(text):
+    doc = Document(text, len(text))
+    return list(SlashCompleter().get_completions(doc, None))
+
+def test_completer_slash_lists_commands_before_tools():
+    texts = [c.text for c in _completions("/")]
+    # commands (exit, help) and tool templates are all present
+    assert "exit" in texts
+    assert any(t.startswith("read_file(") for t in texts)
+    # commands come before tools
+    assert texts.index("exit") < texts.index(next(t for t in texts if t.startswith("read_file(")))
+
+def test_completer_prefix_filters_to_tool():
+    texts = [c.text for c in _completions("/re")]
+    assert any(t.startswith("read_file(") for t in texts)
+    assert "exit" not in texts
+
+def test_completer_prefix_filters_to_command():
+    texts = [c.text for c in _completions("/ex")]
+    assert "exit" in texts
+    assert not any(t.startswith("read_file(") for t in texts)
+
+def test_completer_tool_template_is_arg_skeleton():
+    comp = next(c for c in _completions("/read_file") if c.text.startswith("read_file("))
+    assert comp.text == 'read_file({"filename": ""})'
+
+def test_completer_no_completions_past_name():
+    assert _completions("/read_file(") == []
+
+def test_completer_ignores_non_slash():
+    assert _completions("hello") == []
+
+def test_slash_runs_tool_locally(tmp_path, capsys):
+    f = tmp_path / "note.txt"
+    f.write_text("alpha\nfoo beta\n")
+    result = dispatch_slash_command(f'/search_text({{"pattern": "foo", "path": "{tmp_path}"}})')
+    assert result is False
+    captured = capsys.readouterr()
+    assert "foo beta" in captured.out          # tool result was printed
+    assert "search_text" in captured.out
+
+def test_slash_tool_bad_args_prints_usage(capsys):
+    result = dispatch_slash_command("/read_file(not json)")
+    assert result is False
+    captured = capsys.readouterr()
+    assert "usage:" in captured.out
+
+def test_slash_help_lists_commands_and_tools(capsys):
+    result = cmd_help()
+    assert result is False
+    captured = capsys.readouterr()
+    assert "/exit" in captured.out
+    assert "/read_file" in captured.out
+    assert "/search_text" in captured.out
+
+
+def _run_enter_binding(text):
+    # Drives the real `enter` handler from _make_key_bindings against a Buffer whose
+    # completion menu has the first item highlighted. validate_and_handle() needs a
+    # running app, so we stub it and just record whether the line was submitted.
+    from prompt_toolkit.buffer import Buffer, CompletionState
+    from letscode.agent import _make_key_bindings, SlashCompleter
+
+    handler = _make_key_bindings().bindings[0].handler
+    buf = Buffer()
+    buf.insert_text(text)
+    comps = list(SlashCompleter().get_completions(buf.document, None))
+    buf.complete_state = CompletionState(original_document=buf.document, completions=comps)
+    buf.complete_next()                      # highlight first match
+    submitted = []
+    buf.validate_and_handle = lambda: submitted.append(True)
+    event = MagicMock()
+    event.current_buffer = buf
+    handler(event)
+    return buf.text, bool(submitted)
+
+def test_enter_runs_highlighted_command():
+    # Highlighting /exit and pressing Enter applies it AND submits (runs immediately).
+    text, submitted = _run_enter_binding("/ex")
+    assert text == "/exit"
+    assert submitted is True
+
+def test_enter_inserts_tool_template_without_submitting():
+    # Highlighting a tool inserts its arg template but does NOT submit — user fills args.
+    text, submitted = _run_enter_binding("/sea")
+    assert text == '/search_text({"pattern": "", "path": ""})'
+    assert submitted is False
 
 
 # ── Task: search_text ───────────────────────────────────────────────────────

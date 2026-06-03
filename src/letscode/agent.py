@@ -6,6 +6,11 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from pathlib import Path
 
+from prompt_toolkit import PromptSession, ANSI
+from prompt_toolkit.completion import Completer, Completion
+from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.key_binding import KeyBindings
+
 load_dotenv()
 
 # OpenRouter is OpenAI-API-compatible — same SDK, different base_url
@@ -346,32 +351,151 @@ def parse_tool_call(text: str) -> List[Tuple[str, Dict[str, Any]]]:
 # Typed /commands are handled locally and never sent to the LLM — no tokens,
 # instant, guaranteed. Mirrors the TOOL_REGISTRY / dispatch_tool pattern.
 
+def _first_doc_line(fn) -> str:
+    """First non-blank line of a function's docstring, for menu/help summaries."""
+    doc = (fn.__doc__ or "").strip()
+    return doc.splitlines()[0] if doc else ""
+
+
 def cmd_exit() -> bool:
     """Quits letscode."""
     print("bye!")
     return True   # True signals run_agent_loop to stop
 
 
+def cmd_help() -> bool:
+    """Lists available commands and tools."""
+    print("\n  Commands:")
+    for name, fn in SLASH_REGISTRY.items():
+        print(f"    /{name:<12} {_first_doc_line(fn)}")
+    print("\n  Tools (run as /tool({\"arg\": \"value\"})):")
+    for name, fn in TOOL_REGISTRY.items():
+        print(f"    /{name:<12} {_first_doc_line(fn)}")
+    print()
+    return False
+
+
 SLASH_REGISTRY = {
     "exit": cmd_exit,
+    "help": cmd_help,
 }
 
 
 def dispatch_slash_command(user_input: str) -> bool:
     """
     Handles a /command line. Returns True if the app should exit.
-    Unknown commands print a hint and return False (not forwarded to the LLM).
+
+    Two forms, both handled locally (never sent to the LLM):
+      /command            — runs a SLASH_REGISTRY handler (e.g. /exit, /help)
+      /tool({"arg": ...}) — runs a TOOL_REGISTRY tool directly and prints the result
+
+    Unknown commands print a hint and return False.
     """
-    parts = user_input[1:].split()          # "/exit foo" -> ["exit", "foo"]
+    body = user_input[1:].strip()           # drop leading slash
+    name = body.split("(", 1)[0].strip()    # "/read_file({...})" -> "read_file"
+
+    # ── Tool form: /tool({...}) — run the tool locally, no LLM ─────
+    if name in TOOL_REGISTRY:
+        calls = parse_tool_call("tool: " + body)
+        if not calls:
+            print(f'  usage: /{name}({{"arg": "value"}})')
+            return False
+        for tool_name, args in calls:
+            print(f"  ⚙ {tool_name}({args})")
+            result = dispatch_tool(tool_name, args)
+            print(f"  {json.dumps(result)}")
+        return False
+
+    # ── Command form: /exit, /help, … ──────────────────────────────
+    parts = body.split()                    # "exit foo" -> ["exit", "foo"]
     if not parts:                            # bare "/" -> no crash
         return False
-    name = parts[0]
-    handler = SLASH_REGISTRY.get(name)
+    handler = SLASH_REGISTRY.get(parts[0])
     if handler is None:
         known = ", ".join("/" + c for c in SLASH_REGISTRY)
-        print(f"  unknown command: /{name}  (available: {known})")
+        print(f"  unknown command: /{parts[0]}  (available: {known})")
         return False
     return handler()
+
+
+# ── Interactive prompt: live /-menu of commands and tools ────────────────────
+# Typing "/" opens a navigable dropdown (arrow keys + Enter) listing both slash
+# commands and tools, like Claude Code. Powered by prompt_toolkit.
+
+def _tool_arg_template(fn) -> str:
+    """Builds a JSON arg skeleton from a tool's signature, e.g. {"filename": ""}."""
+    params = inspect.signature(fn).parameters
+    return json.dumps({p: "" for p in params})
+
+
+class SlashCompleter(Completer):
+    """Completes "/" into the list of slash commands and tools.
+
+    Commands complete to their name (run on Enter). Tools complete to a
+    fill-in-the-args template like /read_file({"filename": ""}).
+    """
+
+    def get_completions(self, document, complete_event):
+        text = document.text_before_cursor
+        if not text.startswith("/"):
+            return
+        if "(" in text:                      # past name selection — filling args
+            return
+        word = text[1:]                      # text after the slash
+        word_lower = word.lower()
+
+        # Commands first, then tools — preserves a natural grouping in the menu.
+        for name, fn in SLASH_REGISTRY.items():
+            if name.lower().startswith(word_lower):
+                yield Completion(
+                    name,
+                    start_position=-len(word),
+                    display=HTML(f"<b>/{name}</b>"),
+                    display_meta="command · " + _first_doc_line(fn),
+                )
+        for name, fn in TOOL_REGISTRY.items():
+            if name.lower().startswith(word_lower):
+                yield Completion(
+                    f"{name}({_tool_arg_template(fn)})",
+                    start_position=-len(word),
+                    display=f"/{name}",
+                    display_meta="tool · " + _first_doc_line(fn),
+                )
+
+
+def _make_key_bindings() -> KeyBindings:
+    """Enter accepts a highlighted completion; commands also run immediately."""
+    kb = KeyBindings()
+
+    @kb.add("enter")
+    def _(event):
+        buf = event.current_buffer
+        state = buf.complete_state
+        if state and state.current_completion:
+            comp = state.current_completion
+            buf.apply_completion(comp)
+            if "(" not in comp.text:         # a command → run on this Enter
+                buf.validate_and_handle()
+            # a tool template has "(" → stay so the user can fill in args
+        else:
+            buf.validate_and_handle()
+
+    return kb
+
+
+_prompt_session = None
+
+
+def prompt_user(message) -> str:
+    """Reads a line of input with the interactive /-menu enabled."""
+    global _prompt_session
+    if _prompt_session is None:
+        _prompt_session = PromptSession(
+            completer=SlashCompleter(),
+            complete_while_typing=True,
+            key_bindings=_make_key_bindings(),
+        )
+    return _prompt_session.prompt(message)
 
 
 def run_agent_loop() -> None:
@@ -388,7 +512,7 @@ def run_agent_loop() -> None:
     while True:
         # ── Get user input ─────────────────────────────────────────────
         try:
-            user_input = input(f"{YOU_COLOR}You:{RESET_COLOR} ").strip()
+            user_input = prompt_user(ANSI(f"{YOU_COLOR}You:{RESET_COLOR} ")).strip()
         except (KeyboardInterrupt, EOFError):
             print("\nbye!")
             break

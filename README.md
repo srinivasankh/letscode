@@ -27,7 +27,8 @@ The entire agent fits in a single file. No magic, no abstractions you didn't wri
 
 - **Model-agnostic** — works with any model on [OpenRouter](https://openrouter.ai): Claude, GPT-4o, Gemini, Llama, Mistral, DeepSeek, and more
 - **Free tier support** — defaults to `meta-llama/llama-3.3-70b-instruct:free` (no cost)
-- **Three core tools** built in: read files, list directories, edit files
+- **Built-in tools** — read files, list directories, edit files, search file contents, run shell commands
+- **Interactive `/` menu** — type `/` for a navigable dropdown of every command and tool (arrow keys + Enter), just like Claude Code; pick a tool to run it locally without spending tokens
 - **Text-protocol tool-calling** — no vendor lock-in; the LLM emits tool calls as plain text
 - **Full conversation history** — the agent remembers context across turns
 
@@ -123,6 +124,11 @@ User input
 | `search_text(pattern, path)` | Recursively search file contents for a regex, returning `file:line:text` hits |
 | `run_command(command)` | Run a shell command (with confirm-before-run gate) |
 
+**Slash menu:** type `/` to open an interactive dropdown of commands (`/exit`, `/help`)
+and tools. Use the arrow keys and Enter to select. Picking a command runs it; picking a
+tool inserts a `/tool({"arg": "value"})` template you fill in — the tool then runs locally
+(no LLM call) and prints its result.
+
 ---
 
 ## Project structure
@@ -141,3 +147,4 @@ pyproject.toml   # package config
 - Python 3.12+
 - [uv](https://github.com/astral-sh/uv) (recommended) or pip
 - A free [OpenRouter](https://openrouter.ai/keys) API key
+- [prompt_toolkit](https://github.com/prompt-toolkit/python-prompt-toolkit) (installed automatically) — powers the interactive `/` menu
