@@ -35,6 +35,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/letscode"]
 
+[tool.hatch.build.targets.sdist]
+exclude = ["/CLAUDE.md", "/docs"]
+
 [tool.uv]
 reinstall = true
 
