@@ -120,6 +120,8 @@ User input
 | `read_file(filename)` | Read the full content of a file |
 | `list_files(path)` | List files and directories at a path |
 | `edit_file(path, old_str, new_str)` | Replace text in a file, or create a new file |
+| `search_text(pattern, path)` | Recursively search file contents for a regex, returning `file:line:text` hits |
+| `run_command(command)` | Run a shell command (with confirm-before-run gate) |
 
 ---
 

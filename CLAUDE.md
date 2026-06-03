@@ -28,10 +28,12 @@ tool: TOOL_NAME({"param": "value"})
 ```
 `parse_tool_call()` scans LLM output for these lines and dispatches to `TOOL_REGISTRY`.
 
-**Three tools implemented:**
+**Tools implemented:**
 - `read_file(filename)` — reads file content, returns `{file_path, content}`
 - `list_files(path)` — lists directory, returns `{path, files: [{filename, type}]}`
 - `edit_file(path, old_str, new_str)` — replaces first match, or creates file if `old_str=""`
+- `search_text(pattern, path)` — recursive regex search, returns `{pattern, path, count, matches: [{file, line, text}]}` (caps at 100 hits; skips `.git`/`__pycache__`/`.venv`/`node_modules`/binaries)
+- `run_command(command)` — runs a shell command after a `[y/N]` confirm gate, returns `{stdout, stderr, exit_code}`
 
 **Agent loop (`run_agent_loop`):**
 1. Outer loop: read user input → append to conversation history

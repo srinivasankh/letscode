@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 
 from openai import OpenAI
@@ -152,6 +153,73 @@ def run_command(command: str) -> Dict[str, Any]:
         return {"error": "command timed out after 30s"}
 
 
+_SEARCH_IGNORE_DIRS = {".git", "__pycache__", ".venv", "node_modules"}
+_SEARCH_MAX_RESULTS = 100
+
+
+def search_text(pattern: str, path: str = ".") -> Dict[str, Any]:
+    """
+    Searches file contents for a regular expression and returns matching lines.
+    Use this to locate where code lives instead of reading whole files.
+    :param pattern: A Python regular expression to search for.
+    :param path: A file or directory to search. Directories are searched
+        recursively. Defaults to the current directory.
+    :return: pattern, path, count, and a list of matches ({file, line, text}).
+        Results are capped at 100 (truncated=True when the cap is hit).
+    """
+    try:
+        regex = re.compile(pattern)
+    except re.error as e:
+        return {"error": f"invalid regex: {e}"}
+
+    full_path = resolve_abs_path(path)
+    if not full_path.exists():
+        return {"error": f"path not found: {path}"}
+
+    # Collect the files to scan: a single file, or every file under a directory.
+    if full_path.is_file():
+        files = [full_path]
+    else:
+        files = []
+        for root, dirs, filenames in os.walk(full_path):
+            dirs[:] = [
+                d for d in dirs
+                if d not in _SEARCH_IGNORE_DIRS and not d.endswith(".egg-info")
+            ]
+            for name in filenames:
+                files.append(Path(root) / name)
+
+    matches: List[Dict[str, Any]] = []
+    truncated = False
+    for file_path in files:
+        try:
+            with open(str(file_path), "r", encoding="utf-8") as f:
+                for line_no, line in enumerate(f, start=1):
+                    if regex.search(line):
+                        matches.append({
+                            "file": str(file_path),
+                            "line": line_no,
+                            "text": line.rstrip("\n"),
+                        })
+                        if len(matches) >= _SEARCH_MAX_RESULTS:
+                            truncated = True
+                            break
+        except (UnicodeDecodeError, OSError):
+            continue  # skip binary / unreadable files
+        if truncated:
+            break
+
+    result = {
+        "pattern": pattern,
+        "path": str(full_path),
+        "count": len(matches),
+        "matches": matches,
+    }
+    if truncated:
+        result["truncated"] = True
+    return result
+
+
 # ── Registry: name → function ──────────────────────────────────────────────
 
 TOOL_REGISTRY = {
@@ -159,6 +227,7 @@ TOOL_REGISTRY = {
     "list_files": list_files,
     "edit_file": edit_file,
     "run_command": run_command,
+    "search_text": search_text,
 }
 
 

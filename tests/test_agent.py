@@ -1,6 +1,6 @@
 import pytest
 import subprocess
-from letscode.agent import dispatch_tool, run_command, call_llm, dispatch_slash_command, run_agent_loop
+from letscode.agent import dispatch_tool, run_command, call_llm, dispatch_slash_command, run_agent_loop, search_text
 from unittest.mock import patch, MagicMock
 
 
@@ -134,3 +134,51 @@ def test_loop_forwards_normal_prompt_to_llm():
         with patch("builtins.input", side_effect=["write a hello world", "/exit"]):
             run_agent_loop()
     mock_llm.assert_called_once()
+
+
+# ── Task: search_text ───────────────────────────────────────────────────────
+
+def test_search_text_finds_match_across_files(tmp_path):
+    (tmp_path / "a.py").write_text("import os\ndef hello():\n    return 1\n")
+    (tmp_path / "b.py").write_text("x = 2\ndef hello_again():\n    pass\n")
+    result = search_text("def hello", str(tmp_path))
+    assert result["count"] == 2
+    files = {m["file"] for m in result["matches"]}
+    assert str(tmp_path / "a.py") in files
+    assert str(tmp_path / "b.py") in files
+    a_hit = next(m for m in result["matches"] if m["file"] == str(tmp_path / "a.py"))
+    assert a_hit["line"] == 2
+    assert a_hit["text"] == "def hello():"
+
+def test_search_text_no_match_returns_zero(tmp_path):
+    (tmp_path / "a.py").write_text("nothing here\n")
+    result = search_text("zzz_not_found", str(tmp_path))
+    assert result["count"] == 0
+    assert result["matches"] == []
+
+def test_search_text_single_file_path(tmp_path):
+    f = tmp_path / "only.py"
+    f.write_text("line one\ntarget line\nline three\n")
+    result = search_text("target", str(f))
+    assert result["count"] == 1
+    assert result["matches"][0]["line"] == 2
+    assert result["matches"][0]["text"] == "target line"
+
+def test_search_text_bad_regex_returns_error(tmp_path):
+    result = search_text("(unclosed", str(tmp_path))
+    assert "error" in result
+
+def test_search_text_skips_ignored_dirs(tmp_path):
+    (tmp_path / "keep.py").write_text("needle here\n")
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    (git_dir / "config").write_text("needle here too\n")
+    result = search_text("needle", str(tmp_path))
+    assert result["count"] == 1
+    assert result["matches"][0]["file"] == str(tmp_path / "keep.py")
+
+def test_search_text_via_dispatch(tmp_path):
+    (tmp_path / "a.py").write_text("foo bar\n")
+    result = dispatch_tool("search_text", {"pattern": "foo", "path": str(tmp_path)})
+    assert result["count"] == 1
+    assert result["matches"][0]["text"] == "foo bar"
