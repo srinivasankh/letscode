@@ -38,7 +38,7 @@ The entire agent fits in a single file. No magic, no abstractions you didn't wri
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/your-username/letscode.git
+git clone https://github.com/srinivasankh/letscode.git
 cd letscode
 ```
 
