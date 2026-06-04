@@ -41,7 +41,7 @@ tool: TOOL_NAME({"param": "value"})
 
 **System prompt** is built dynamically: `build_system_prompt()` injects each tool's name, docstring, and signature from `TOOL_REGISTRY` so the LLM always has accurate tool descriptions.
 
-**Interactive `/` menu** — `prompt_user()` wraps a `prompt_toolkit` `PromptSession`. Typing `/` opens a live dropdown (`SlashCompleter`) listing commands (`SLASH_REGISTRY`) then tools (`TOOL_REGISTRY`); arrow keys + Enter select. A custom Enter key-binding (`_make_key_bindings`) applies the highlighted completion — commands run immediately, tools insert a `/tool({...})` arg template for the user to fill. `dispatch_slash_command` runs the tool form locally via `parse_tool_call` + `dispatch_tool` (no LLM call). The loop calls `prompt_user`, not `input()`, so tests patch `letscode.agent.prompt_user`.
+**Interactive `/` menu** — `prompt_user()` wraps a `prompt_toolkit` `PromptSession`. Typing `/` opens a live dropdown (`SlashCompleter`) listing commands (`SLASH_REGISTRY`) then tools (`TOOL_REGISTRY`); arrow keys + Enter select. A custom Enter key-binding (`_make_key_bindings`) applies the highlighted completion — commands run immediately, tools insert a `/tool({...})` arg template for the user to fill. `dispatch_slash_command` runs the tool form locally via `parse_tool_call` + `dispatch_tool` (no LLM call), rendering the result human-readably with `_format_tool_result` (the agent loop still feeds raw JSON to the LLM). The loop calls `prompt_user`, not `input()`, so tests patch `letscode.agent.prompt_user`.
 
 ## Key conventions
 - Add new tools as plain functions in `agent.py`, register them in `TOOL_REGISTRY`, and the system prompt + `/` menu pick them up automatically — no other wiring needed.

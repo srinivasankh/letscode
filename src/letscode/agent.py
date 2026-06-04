@@ -381,6 +381,54 @@ SLASH_REGISTRY = {
 }
 
 
+def _format_tool_result(result: Dict[str, Any]) -> str:
+    """Human-readable rendering of a tool result for manual /tool runs.
+
+    The agent loop still feeds raw JSON to the LLM — this is only for the
+    person typing a /tool(...) command at the prompt.
+    """
+    if "error" in result:
+        return f"  error: {result['error']}"
+
+    # search_text — {pattern, path, count, matches:[{file, line, text}]}
+    if "matches" in result:
+        count = result.get("count", len(result["matches"]))
+        header = f"  {count} match" + ("" if count == 1 else "es")
+        if result.get("truncated"):
+            header += " (truncated)"
+        lines = [header]
+        lines += [f"    {m['file']}:{m['line']}: {m['text']}" for m in result["matches"]]
+        return "\n".join(lines)
+
+    # list_files — {path, files:[{filename, type}]}
+    if "files" in result:
+        lines = [f"  {result.get('path', '')}"]
+        for f in result["files"]:
+            suffix = "/" if f.get("type") == "dir" else ""
+            lines.append(f"    {f['filename']}{suffix}")
+        return "\n".join(lines)
+
+    # read_file — {file_path, content}
+    if "content" in result:
+        return f"  {result.get('file_path', '')}\n{result['content'].rstrip(chr(10))}"
+
+    # run_command — {stdout, stderr, exit_code}
+    if "exit_code" in result:
+        lines = []
+        if result.get("stdout"):
+            lines.append(result["stdout"].rstrip("\n"))
+        if result.get("stderr"):
+            lines.append(result["stderr"].rstrip("\n"))
+        lines.append(f"  exit code: {result['exit_code']}")
+        return "\n".join(lines)
+
+    # edit_file — {path, action}
+    if "action" in result:
+        return f"  {result['action']}: {result.get('path', '')}"
+
+    return f"  {json.dumps(result)}"
+
+
 def dispatch_slash_command(user_input: str) -> bool:
     """
     Handles a /command line. Returns True if the app should exit.
@@ -403,7 +451,7 @@ def dispatch_slash_command(user_input: str) -> bool:
         for tool_name, args in calls:
             print(f"  ⚙ {tool_name}({args})")
             result = dispatch_tool(tool_name, args)
-            print(f"  {json.dumps(result)}")
+            print(_format_tool_result(result))
         return False
 
     # ── Command form: /exit, /help, … ──────────────────────────────

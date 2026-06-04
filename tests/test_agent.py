@@ -2,7 +2,7 @@ import pytest
 import subprocess
 from letscode.agent import (
     dispatch_tool, run_command, call_llm, dispatch_slash_command, run_agent_loop,
-    search_text, SlashCompleter, cmd_help,
+    search_text, SlashCompleter, cmd_help, _format_tool_result,
 )
 from prompt_toolkit.document import Document
 from unittest.mock import patch, MagicMock
@@ -182,6 +182,57 @@ def test_slash_runs_tool_locally(tmp_path, capsys):
     captured = capsys.readouterr()
     assert "foo beta" in captured.out          # tool result was printed
     assert "search_text" in captured.out
+    assert "1 match" in captured.out           # pretty-printed, not raw JSON
+    assert f"{f}:2: foo beta" in captured.out  # file:line: text format
+
+
+# ── _format_tool_result (pretty manual-tool output) ──────────────────────────
+
+def test_format_error():
+    assert _format_tool_result({"error": "boom"}) == "  error: boom"
+
+def test_format_search_matches():
+    out = _format_tool_result({
+        "count": 2,
+        "matches": [
+            {"file": "a.py", "line": 3, "text": "def x():"},
+            {"file": "b.py", "line": 9, "text": "def y():"},
+        ],
+    })
+    assert "2 matches" in out
+    assert "a.py:3: def x():" in out
+    assert "b.py:9: def y():" in out
+
+def test_format_search_singular_and_truncated():
+    one = _format_tool_result({"count": 1, "matches": [{"file": "a", "line": 1, "text": "t"}]})
+    assert "1 match" in one and "matches" not in one
+    trunc = _format_tool_result({"count": 100, "matches": [], "truncated": True})
+    assert "truncated" in trunc
+
+def test_format_list_files():
+    out = _format_tool_result({"path": "/p", "files": [
+        {"filename": "a.py", "type": "file"},
+        {"filename": "sub", "type": "dir"},
+    ]})
+    assert "a.py" in out
+    assert "sub/" in out          # dirs get a trailing slash
+
+def test_format_read_file():
+    out = _format_tool_result({"file_path": "/p/x.py", "content": "line1\nline2\n"})
+    assert "/p/x.py" in out
+    assert "line1" in out and "line2" in out
+
+def test_format_run_command():
+    out = _format_tool_result({"stdout": "hello\n", "stderr": "", "exit_code": 0})
+    assert "hello" in out
+    assert "exit code: 0" in out
+
+def test_format_edit_file():
+    assert "created_file" in _format_tool_result({"path": "/p/new.py", "action": "created_file"})
+
+def test_format_unknown_falls_back_to_json():
+    out = _format_tool_result({"weird": 1})
+    assert "weird" in out
 
 def test_slash_tool_bad_args_prints_usage(capsys):
     result = dispatch_slash_command("/read_file(not json)")
