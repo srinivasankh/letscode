@@ -20,6 +20,13 @@ def test_dispatch_bad_args():
     assert "error" in result
     assert "bad arguments" in result["error"]
 
+def test_read_file_on_directory(tmp_path):
+    # Reading a directory gives a clear hint, not the OS-specific error
+    # (Windows: PermissionError; Linux: IsADirectoryError).
+    result = dispatch_tool("read_file", {"filename": str(tmp_path)})
+    assert "error" in result
+    assert "is a directory" in result["error"]
+
 def test_dispatch_valid_tool(tmp_path):
     test_file = tmp_path / "hello.txt"
     test_file.write_text("world")

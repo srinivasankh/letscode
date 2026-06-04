@@ -70,6 +70,8 @@ def read_file(filename: str) -> Dict[str, Any]:
     """
     try:
         full_path = resolve_abs_path(filename)
+        if full_path.is_dir():
+            return {"error": f"'{filename}' is a directory — use list_files to browse it"}
         with open(str(full_path), "r") as f:
             content = f.read()
         return {"file_path": str(full_path), "content": content}
