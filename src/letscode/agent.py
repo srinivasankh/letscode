@@ -1,6 +1,12 @@
 import os
 import re
 import subprocess
+from importlib.metadata import version as _pkg_version, PackageNotFoundError
+
+try:
+    __version__ = _pkg_version("letscode-cli")
+except PackageNotFoundError:
+    __version__ = "dev"
 
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -41,7 +47,7 @@ BANNER = f"""{ASSISTANT_COLOR}
 def print_welcome() -> None:
     """Prints the welcome screen."""
     print(BANNER)
-    print(f"  by Srini · v0.1.0\n")
+    print(f"  by Srini · v{__version__}\n")
     print(f"  {'─' * 58}")
     print(f"  Model   : {ASSISTANT_COLOR}{MODEL}{RESET_COLOR}")
     print(f"  BYOK    : Add your OpenRouter key to .env")
